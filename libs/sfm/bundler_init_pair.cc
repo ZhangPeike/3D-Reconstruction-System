@@ -63,18 +63,22 @@ void InitialPair::compute_pair (Result* result)
             continue;
         }
         //Zhang added
-        if (this->isPureRotation(candidate))
+        CameraPose pose1, pose2;
+        bool found_rotation = this->isPureRotation(candidate,&pose1, &pose2);
+        std::cout << found_rotation << std::endl;
+        if (found_rotation)
         {
+            std::cout << " !!!Only rotation"<< std::endl;
             continue;
         }
         /* Reject pairs with too high percentage of homograhy inliers. */
         std::size_t num_inliers = this->compute_homography_inliers(candidate);
-//Zhang Peike adds detecting pure rotation or weak parallax procedure;
+        //Zhang Peike adds detecting pure rotation or weak parallax procedure;
 
-/*
- *bool isOnlyRotating
- *bool isWeakParallax
-*/
+        /*
+         *bool isOnlyRotating
+         *bool isWeakParallax
+        */
         float percentage = static_cast<float>(num_inliers) / num_matches;
         if (percentage > this->opts.max_homography_inliers)
         {
@@ -83,7 +87,7 @@ void InitialPair::compute_pair (Result* result)
         }
 
         /* Compute initial pair pose. */
-        CameraPose pose1, pose2;
+        //CameraPose pose1, pose2;
         bool const found_pose = this->compute_pose(candidate, &pose1, &pose2);
         if (!found_pose)
         {
@@ -250,29 +254,45 @@ InitialPair::compute_homography_inliers (CandidatePair const& candidate)
 }
 //ZhangPeike added
 bool
-InitialPair::isPureRotation(CandidatePair const& candidate){
+InitialPair::isPureRotation(CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2){
     double RotationIndex;
-    CameraPose* pose1;
-    CameraPose* pose2;
-    //ransac_result may be a data structure.
     RansacHomography::Result ransac_result;
     RansacHomography homography_ransac(this->opts.homography_opts);
     homography_ransac.estimate(candidate.matches, &ransac_result);
+    std::cout<<"!!!Homography is estimated by ZhangPeike,focal length:"<<std::endl;
     Viewport const& view_1 = this->viewports->at(candidate.view_1_id);
     Viewport const& view_2 = this->viewports->at(candidate.view_2_id);
     pose1->set_k_matrix(view_1.focal_length, 0.0, 0.0);
     pose2->set_k_matrix(1/view_2.focal_length, 0.0, 0.0);
+    std::cout<<view_1.focal_length<<std::endl;
+    std::cout<<view_2.focal_length<<std::endl;
     HomographyMatrix G = pose2->K*(ransac_result.homography)*pose1->K;
+    std::cout<<G[0]<<" "<<G[1]<<" "<<G[2]<<std::endl;
+    std::cout<<G[3]<<" "<<G[4]<<" "<<G[5]<<std::endl;
+    std::cout<<G[6]<<" "<<G[7]<<" "<<G[8]<<std::endl;
+    /*
+    //HomographyMatrix G;
+    //ransac_result may be a data structure.
+
+    //std::cout << "ok" << std::endl;
+    RansacHomography homography_ransac(this->opts.homography_opts);
+    homography_ransac.estimate(candidate.matches, &ransac_result);
+    Viewport const& view_1 = this->viewports->at(candidate.view_1_id);
+    Viewport const& view_2 = this->viewports->at(candidate.view_2_id);
+    HomographyMatrix G = pose2->K.transposed()*(ransac_result.homography)*pose1->K;
+    */
     //SVD of G
     math::Matrix<double,3,3> U,D,V;
     //math::matrix_svd
     math::matrix_svd(G,&U,&D,&V);
-    RotationIndex = D(0,0)/D(2,2);
+    RotationIndex = D[0]/D[8];
     if (RotationIndex<0.5)
         RotationIndex=1/RotationIndex;
-    if (RotationIndex<1.09)
+    //std::cout << "End" << std::endl;
+    std::cout << "RotationIndex:"<< RotationIndex << std::endl;
+    if (RotationIndex<1.1)
     {
-        std::cout<<"Pure rotation is found!"<<std::endl;
+        //std::cout<<"Pure rotation is found!"<<std::endl;
         return true;
     }
     else

@@ -34,34 +34,28 @@ public:
     struct Options
     {
         Options (void);
-
         /**
          * The algorithm tries to explain the matches using a homography.
          * The homograhy is computed using RANSAC with the given options.
          */
         RansacHomography::Options homography_opts;
-
         /**
          * The maximum percentage of homography inliers.
          */
         float max_homography_inliers;
-
         /**
          * Minimum number of pair matches. Minimum is 8.
          */
         int min_num_matches;
-
         /**
          * Minimum triangulation angle of tracks (in radians).
          */
         double min_triangulation_angle;
-
         /**
          * Produce status messages on the console.
          */
         bool verbose_output;
     };
-
     /**
      * The resulting initial pair with view IDs and relative camera pose.
      * If no initial pair could be found, both view IDs are set to -1.
@@ -73,6 +67,16 @@ public:
         CameraPose view_1_pose;
         CameraPose view_2_pose;
     };
+
+public:
+    explicit InitialPair (Options const& options);
+    /** Initializes the module with viewport and track information. */
+    void initialize (ViewportList const& viewports, TrackList const& tracks);
+    /** Finds a suitable initial pair and reconstructs the pose. */
+    void compute_pair (Result* result);
+    /** Reconstructs the pose for a given intitial pair. */
+    void compute_pair (int view_1_id, int view_2_id, Result* result);
+
 private:
     struct CandidatePair
     {
@@ -82,26 +86,14 @@ private:
         bool operator< (CandidatePair const& other) const;
     };
     typedef std::vector<CandidatePair> CandidatePairs;
-public:
-    explicit InitialPair (Options const& options);
-    /** Initializes the module with viewport and track information. */
-    void initialize (ViewportList const& viewports, TrackList const& tracks);
-    /** Finds a suitable initial pair and reconstructs the pose. */
-    void compute_pair (Result* result);
-    /** Reconstructs the pose for a given intitial pair. */
-    void compute_pair (int view_1_id, int view_2_id, Result* result);
-    //Zhang
-    bool isPureRotation(CandidatePair const& candidate);
-//private:
-public:
-    //get number of points of homography
+
+private:
     std::size_t compute_homography_inliers (CandidatePair const& candidate);
-    bool compute_pose (CandidatePair const& candidate,
-        CameraPose* pose1, CameraPose* pose2);
+    bool compute_pose (CandidatePair const& candidate, CameraPose* pose1, CameraPose* pose2);
+    bool isPureRotation(CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2);
     void compute_candidate_pairs (CandidatePairs* candidates);
     double angle_for_pose (CandidatePair const& candidate,
         CameraPose const& pose1, CameraPose const& pose2);
-    //SCORE,Zhang noted
     float score_for_pair (CandidatePair const& candidate,
         std::size_t num_inliers, double angle);
     void debug_output (CandidatePair const& candidate,

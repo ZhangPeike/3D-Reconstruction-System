@@ -11,13 +11,20 @@
 #include <vector>
 #include <sstream>
 #include <random>
-
+#include "math/matrix_tools.h"
+#include "math/matrix_svd.h"
+#include "math/functions.h"
+#include "sfm/fundamental.h"
 #include "sfm/ransac_homography.h"
 #include "sfm/triangulate.h"
 #include "sfm/bundler_init_pair.h"
 #include "math/matrix_tools.h"
 #include "math/matrix_svd.h"
 #include "math/functions.h"
+#include "util/timer.h"
+#include "util/exception.h"
+//How to enable openCV. Zhang Peike
+#include<opencv2/opencv.hpp>
 
 SFM_NAMESPACE_BEGIN
 SFM_BUNDLER_NAMESPACE_BEGIN
@@ -29,6 +36,7 @@ void InitialPair::compute_pair (Result* result)
 
     std::cout << "Searching for initial pair..." << std::endl;
     std::cout << "Hello from ZhangPeike"<<std::endl;
+
     result->view_1_id = -1;
     result->view_2_id = -1;
 
@@ -47,10 +55,15 @@ void InitialPair::compute_pair (Result* result)
      */
     bool found_pair = false;
     std::size_t found_pair_id = std::numeric_limits<std::size_t>::max();
+    //C++ primer + P120
     std::vector<float> pair_scores(candidates.size(), 0.0f);
+
+    //Zhang Peike Added timer
+    util::WallTimer PoseTimer;
 #pragma omp parallel for schedule(dynamic)
     for (std::size_t i = 0; i < candidates.size(); ++i)
     {
+        //Zhang Peike timer
         if (found_pair)
             continue;
 
@@ -62,7 +75,9 @@ void InitialPair::compute_pair (Result* result)
             this->debug_output(candidate);
             continue;
         }
+
         //Zhang added
+        /*
         CameraPose pose1, pose2;
         bool found_rotation = this->isPureRotation(candidate,&pose1, &pose2);
         std::cout << found_rotation << std::endl;
@@ -71,30 +86,45 @@ void InitialPair::compute_pair (Result* result)
             std::cout << " !!!Only rotation"<< std::endl;
             continue;
         }
-        /* Reject pairs with too high percentage of homograhy inliers. */
-        std::size_t num_inliers = this->compute_homography_inliers(candidate);
-        //Zhang Peike adds detecting pure rotation or weak parallax procedure;
-
-        /*
-         *bool isOnlyRotating
-         *bool isWeakParallax
         */
-        float percentage = static_cast<float>(num_inliers) / num_matches;
-        if (percentage > this->opts.max_homography_inliers)
+
+        //Zhang Peike Homography is being estimated!!!
+        //Zhang Peike adds detecting pure rotation
+        CameraPose pose1, pose2;
+        bool IsPureRotattion=false;
+        std::size_t num_inliers = this->compute_homography_inliers(candidate,&pose1,&pose2,&IsPureRotattion);
+        std::cout<<"Is Pure Rotation:"<<IsPureRotattion<<std::endl;
+        if(IsPureRotattion)
         {
-            this->debug_output(candidate, num_inliers);
             continue;
         }
 
+        //ZhangPeike compute pose from Essetial or normalized homography
         /* Compute initial pair pose. */
-        //CameraPose pose1, pose2;
+        float percentage = static_cast<float>(num_inliers) / num_matches;
+        if (percentage < this->opts.max_homography_inliers)
+        {
+            bool const found_pose = this->compute_pose(candidate, &pose1, &pose2);
+            if (!found_pose)
+            {
+                this->debug_output(candidate, num_inliers);
+                continue;
+            }
+        }
+        else
+        {
+            //Zhang Peike computes pose from Homography.
+            this->compute_pose_homography (candidate, &pose1, &pose2);
+        }
+
+/*
         bool const found_pose = this->compute_pose(candidate, &pose1, &pose2);
         if (!found_pose)
         {
             this->debug_output(candidate, num_inliers);
             continue;
         }
-
+*/
         /* Rejects pairs with bad triangulation angle. */
         double const angle = this->angle_for_pose(candidate, pose1, pose2);
         pair_scores[i] = this->score_for_pair(candidate, num_inliers, angle);
@@ -133,11 +163,13 @@ void InitialPair::compute_pair (Result* result)
             found_pair = true;
         }
     }
-
+    std::cout<<"Pose Timer:"<<PoseTimer.get_elapsed()<<" ms"<<std::endl;
     /* Return if a pair satisfying all thresholds has been found. */
     if (found_pair)
+    {
+        std::cout<<"...One pair has passed all checks to be the initial pair...in bundler_init_pairl.cc line166"<<std::endl;
         return;
-
+    }
     /* Return pair with best score (larger than 0.0). */
     std::cout << "Searching for pair with best score..." << std::endl;
     float best_score = 0.0f;
@@ -150,7 +182,6 @@ void InitialPair::compute_pair (Result* result)
         best_score = pair_scores[i];
         best_pair_id = i;
     }
-
     /* Recompute pose for pair with best score. */
     if (best_score > 0.0f)
     {
@@ -159,10 +190,10 @@ void InitialPair::compute_pair (Result* result)
         this->compute_pose(candidates[best_pair_id],
             &result->view_1_pose, &result->view_2_pose);
     }
+
 }
 
-void
-InitialPair::compute_pair (int view_1_id, int view_2_id, Result* result)
+void InitialPair::compute_pair (int view_1_id, int view_2_id, Result* result)
 {
     if (view_1_id > view_2_id)
         std::swap(view_1_id, view_2_id);
@@ -243,16 +274,194 @@ InitialPair::compute_candidate_pairs (CandidatePairs* candidates)
     }
 }
 
+/*
 std::size_t
 InitialPair::compute_homography_inliers (CandidatePair const& candidate)
 {
-    /* Execute homography RANSAC. */
+    // Execute homography RANSAC.
     RansacHomography::Result ransac_result;
     RansacHomography homography_ransac(this->opts.homography_opts);
     homography_ransac.estimate(candidate.matches, &ransac_result);
     return ransac_result.inliers.size();
 }
+*/
+std::size_t
+InitialPair::compute_homography_inliers (CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2,bool* Is_Pure_Rotation)
+{
+    double RotationIndex;
+    math::Matrix<double,3,3> U,D,V;
+    /* Execute homography RANSAC. */
+    RansacHomography::Result ransac_result;
+    RansacHomography homography_ransac(this->opts.homography_opts);
+    homography_ransac.estimate(candidate.matches, &ransac_result);
+    // Zhang Peike Added
+    std::cout<<"!!!Homography is estimated once:"<<std::endl;
+    Viewport const& view_1 = this->viewports->at(candidate.view_1_id);
+    Viewport const& view_2 = this->viewports->at(candidate.view_2_id);
+    pose1->set_k_matrix(view_1.focal_length, 0.0, 0.0);
+    pose2->set_k_matrix(1/view_2.focal_length, 0.0, 0.0);
+    HomographyMatrix G = pose2->K*(ransac_result.homography)*pose1->K;
+    math::matrix_svd(G,&U,&D,&V);
+    RotationIndex = D[0]/D[8];
+    if (RotationIndex<0.5)
+        RotationIndex=1/RotationIndex;
+    //std::cout << "End" << std::endl;
+    std::cout << "RotationIndex:"<< RotationIndex << std::endl;
+    if (RotationIndex<1.09)
+    {
+        std::cout<<"Pure rotation is found!"<<std::endl;
+        *Is_Pure_Rotation=true;
+    }
+    else
+    {
+        *Is_Pure_Rotation=false;
+    }
+    return ransac_result.inliers.size();
+}
+
+//Zhang Peike added.
+/*Estimate pose from the homography*/
+void
+InitialPair::compute_pose_homography(CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2)
+{
+    /*Estimate Homography using RANSAC*/
+    std::cout<<"Normalized Homography is being estimated ... in bundler_init_pair.cc line 3**"<<std::endl;
+    RansacHomography::Result ransac_result;
+    RansacHomography homography_ransac(this->opts.homography_opts);
+    homography_ransac.estimate(candidate.matches, &ransac_result);
+
+    Viewport const& view_1 = this->viewports->at(candidate.view_1_id);
+    Viewport const& view_2 = this->viewports->at(candidate.view_2_id);
+    //Pose 1 is [I|0]
+    pose1->init_canonical_form();
+    pose1->set_k_matrix(view_1.focal_length, 0.0, 0.0);
+    pose2->set_k_matrix(1/view_2.focal_length, 0.0, 0.0);
+    HomographyMatrix G = pose2->K*(ransac_result.homography)*pose1->K;
+    //For later triangulation
+    pose2->set_k_matrix(view_2.focal_length, 0.0, 0.0);
+    //Four Rts
+    std::vector<CameraPose> poses;
+    pose_from_homography(G,&poses);
+    bool found_pose = false;
+    //Zhang Peike just changed the check. Now using not only 1 point, but all points in matches.
+    std::int8_t Rt_support_cnt[4]={0,0,0,0};
+    std::int8_t Inliers_Max_Cnt=0,Inliers_Max=0;
+    for (std::size_t i = 0; i < poses.size(); ++i)
+    {
+        poses[i].K = pose2->K;
+        for (std::size_t j = 0; j<candidate.matches.size(); ++j)
+        {
+            if (is_consistent_pose(candidate.matches[j], *pose1, poses[i]))
+            {
+                /*
+                *pose2 = poses[i];
+                found_pose = true;
+                break;
+                */
+                Rt_support_cnt[i]+=1;
+            }
+        }
+        if(Inliers_Max<Rt_support_cnt[i])
+        {
+            Inliers_Max=Rt_support_cnt[i];
+            Inliers_Max_Cnt=i;
+        }
+    }
+    *pose2 = poses[Inliers_Max_Cnt];
+    std::cout<<"Homography putout Rt:"<<Inliers_Max_Cnt<<std::endl;
+}
+//Zhang Peike imitated pose_from_essential
+void
+pose_from_homography (HomographyMatrix const& G,
+    std::vector<CameraPose>* result)
+{
+    math::Matrix<double,3,3> U,D,V,Rp1,Rp2,Rp3,Rp4;
+    math::Vec3d tp1,tp2,tp3,tp4;
+    /* Execute homography RANSAC. */
+    math::matrix_svd(G,&U,&D,&V);
+    D[0]=D[0]/D[4];
+    D[8]=D[8]/D[4];
+    double s = math::matrix_determinant(U)*math::matrix_determinant(V);
+    //For test
+    std::cout<<"G diagonal 1 3:"<<D[0]<<"_"<<D[8]<<std::endl;
+    //Faugeras 1988
+    double a1=std::sqrt((D[0]*D[0]-1)/(D[0]*D[0]-D[8]*D[8]));
+    double a3=std::sqrt((1-D[8]*D[8])/(D[0]*D[0]-D[8]*D[8]));
+    double x1[4]={a1,a1,-a1,-a1};
+    double x3[4]={a3,-a3,a3,-a3};
+    double aux_sin_theta=std::sqrt((D[0]*D[0]-1)*(1-D[8]*D[8]))/(D[0]+D[8]);
+    double sin_theta[4]={aux_sin_theta,-aux_sin_theta,-aux_sin_theta,aux_sin_theta};
+    double cos_theta=(1+D[0]*D[8])/(D[0]+D[8]);
+    Rp1[0]=cos_theta;
+    Rp1[1]=0;
+    Rp1[2]=-sin_theta[0];
+    Rp1[3]=0;
+    Rp1[4]=1;
+    Rp1[5]=0;
+    Rp1[6]=sin_theta[0];
+    Rp1[7]=0;
+    Rp1[8]=cos_theta;
+
+    Rp2[0]=cos_theta;
+    Rp2[1]=0;
+    Rp2[2]=-sin_theta[1];
+    Rp2[3]=0;
+    Rp2[4]=1;
+    Rp2[5]=0;
+    Rp2[6]=sin_theta[1];
+    Rp2[7]=0;
+    Rp2[8]=cos_theta;
+
+    Rp3[0]=cos_theta;
+    Rp3[1]=0;
+    Rp3[2]=-sin_theta[2];
+    Rp3[3]=0;
+    Rp3[4]=1;
+    Rp3[5]=0;
+    Rp3[6]=sin_theta[2];
+    Rp3[7]=0;
+    Rp3[8]=cos_theta;
+
+    Rp4[0]=cos_theta;
+    Rp4[1]=0;
+    Rp4[2]=-sin_theta[3];
+    Rp4[3]=0;
+    Rp4[4]=1;
+    Rp4[5]=0;
+    Rp4[6]=sin_theta[3];
+    Rp4[7]=0;
+    Rp4[8]=cos_theta;
+
+    tp1[0]=(D[0]-D[8])*x1[0];
+    tp1[1]=0;
+    tp1[2]=(D[0]-D[8])*x3[0];
+
+    tp2[0]=(D[0]-D[8])*x1[1];
+    tp2[1]=0;
+    tp2[2]=(D[0]-D[8])*x3[1];
+
+    tp3[0]=(D[0]-D[8])*x1[2];
+    tp3[1]=0;
+    tp3[2]=(D[0]-D[8])*x3[2];
+
+    tp4[0]=(D[0]-D[8])*x1[3];
+    tp4[1]=0;
+    tp4[2]=(D[0]-D[8])*x3[3];
+
+    result->clear();
+    result->resize(4);
+    result->at(0).R=s*U*Rp1*V.transposed();
+    result->at(1).R=s*U*Rp2*V.transposed();
+    result->at(2).R=s*U*Rp3*V.transposed();
+    result->at(3).R=s*U*Rp4*V.transposed();
+    result->at(0).t=U*tp1;
+    result->at(1).t=U*tp2;
+    result->at(2).t=U*tp3;
+    result->at(3).t=U*tp4;
+}
+
 //ZhangPeike added
+/*
 bool
 InitialPair::isPureRotation(CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2){
     double RotationIndex;
@@ -270,7 +479,7 @@ InitialPair::isPureRotation(CandidatePair const& candidate,CameraPose* pose1, Ca
     std::cout<<G[0]<<" "<<G[1]<<" "<<G[2]<<std::endl;
     std::cout<<G[3]<<" "<<G[4]<<" "<<G[5]<<std::endl;
     std::cout<<G[6]<<" "<<G[7]<<" "<<G[8]<<std::endl;
-    /*
+
     //HomographyMatrix G;
     //ransac_result may be a data structure.
 
@@ -280,7 +489,7 @@ InitialPair::isPureRotation(CandidatePair const& candidate,CameraPose* pose1, Ca
     Viewport const& view_1 = this->viewports->at(candidate.view_1_id);
     Viewport const& view_2 = this->viewports->at(candidate.view_2_id);
     HomographyMatrix G = pose2->K.transposed()*(ransac_result.homography)*pose1->K;
-    */
+
     //SVD of G
     math::Matrix<double,3,3> U,D,V;
     //math::matrix_svd
@@ -300,6 +509,7 @@ InitialPair::isPureRotation(CandidatePair const& candidate,CameraPose* pose1, Ca
         return false;
     }
 }
+*/
 bool
 InitialPair::compute_pose (CandidatePair const& candidate,
     CameraPose* pose1, CameraPose* pose2)
@@ -388,8 +598,8 @@ InitialPair::score_for_pair (CandidatePair const& candidate,
     /* Score for angle (min 1 degree, good 8 degree). */
     float f2 = 2.0 / (1.0 + std::exp((1.0 - angle_d) * 6.0 / 8.0)) - 1.0;
     /* Score for H-Inliers (max 70%, good 40%). */
-    float f3 = 2.0 / (1.0 + std::exp((inliers - 0.7) * 6.0 / 0.4)) - 1.0;
-
+    //float f3 = 2.0 / (1.0 + std::exp((inliers - 0.7) * 6.0 / 0.4)) - 1.0;
+    float f3=0.9;
     f1 = math::clamp(f1, 0.0f, 1.0f);
     f2 = math::clamp(f2, 0.0f, 1.0f);
     f3 = math::clamp(f3, 0.0f, 1.0f);

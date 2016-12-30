@@ -1,3 +1,4 @@
+hermite.o: hermite.cc ../../libs/fssr/hermite.h ../../libs/fssr/defines.h
 mesh_clean.o: mesh_clean.cc ../../libs/math/defines.h \
  ../../libs/mve/mesh.h ../../libs/math/vector.h ../../libs/math/algo.h \
  ../../libs/mve/defines.h ../../libs/mve/mesh_tools.h \
@@ -39,7 +40,6 @@ iso_surface.o: iso_surface.cc ../../libs/util/timer.h \
  ../../libs/fssr/iso_surface.h ../../libs/fssr/hermite.h \
  ../../libs/fssr/iso_octree.h ../../libs/fssr/voxel.h \
  ../../libs/fssr/triangulation.h
-hermite.o: hermite.cc ../../libs/fssr/hermite.h ../../libs/fssr/defines.h
 iso_octree.o: iso_octree.cc ../../libs/util/timer.h \
  ../../libs/util/defines.h ../../libs/util/string.h \
  ../../libs/fssr/basis_function.h ../../libs/math/vector.h \

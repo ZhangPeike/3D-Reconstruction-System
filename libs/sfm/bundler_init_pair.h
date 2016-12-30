@@ -86,11 +86,13 @@ private:
         bool operator< (CandidatePair const& other) const;
     };
     typedef std::vector<CandidatePair> CandidatePairs;
-
 private:
-    std::size_t compute_homography_inliers (CandidatePair const& candidate);
+    //Zhang Peike added 3 functions 20161230
+    std::size_t compute_homography_inliers (CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2,bool* Is_Pure_Rotation);
     bool compute_pose (CandidatePair const& candidate, CameraPose* pose1, CameraPose* pose2);
-    bool isPureRotation(CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2);
+    void compute_pose_homography (CandidatePair const& candidate, CameraPose* pose1, CameraPose* pose2);
+    void pose_from_homography (HomographyMatrix const& matrix, std::vector<CameraPose>* result);
+    //bool isPureRotation(CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2);
     void compute_candidate_pairs (CandidatePairs* candidates);
     double angle_for_pose (CandidatePair const& candidate,
         CameraPose const& pose1, CameraPose const& pose2);

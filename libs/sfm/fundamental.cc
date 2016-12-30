@@ -38,7 +38,8 @@ namespace
         (*result)(2, 1) = v[0];
     }
 
-}  // namespace
+}
+// namespace
 //ZhangPeike found no rank 2 constraint!
 bool
 fundamental_least_squares (Correspondences2D2D const& points,
@@ -189,6 +190,7 @@ pose_from_essential (EssentialMatrix const& matrix,
     if(math::matrix_determinant(result->at(2).R)<0)
         result->at(2).R=-result->at(2).R;
     result->at(3).R = result->at(2).R;
+
     result->at(0).t = U.col(2);
     result->at(1).t = -result->at(0).t;
     result->at(2).t = result->at(0).t;

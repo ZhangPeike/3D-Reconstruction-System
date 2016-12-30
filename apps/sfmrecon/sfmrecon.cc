@@ -180,6 +180,7 @@ sfm_reconstruct (AppSettings const& conf)
     }
     else if (!conf.skip_sfm)
     {
+        //Zhang Peike: it is functioning.
         log_message(conf, "Loading pairwise matching from file.");
         std::cout << "Loading pairwise matching from file..." << std::endl;
         sfm::bundler::load_prebundle_from_file(prebundle_path,
@@ -216,7 +217,7 @@ sfm_reconstruct (AppSettings const& conf)
      * Obtaining EXIF guesses can be moved out of the feature module to here.
      * The following code can become its own module "bundler_intrinsics".
      */
-    //Zhang Composite lines
+    //Composite lines for getting intrinsics
     {
         sfm::bundler::Intrinsics::Options intrinsics_opts;
         if (conf.intrinsics_from_views)
@@ -230,11 +231,13 @@ sfm_reconstruct (AppSettings const& conf)
     }
 
     /* Start incremental SfM. */
+    // SfM Timer
     log_message(conf, "Starting incremental SfM.");
     util::WallTimer timer;
     util::system::rand_seed(RAND_SEED_SFM);
 
     /* Compute connected feature components, i.e. feature tracks. */
+    //Zhang Peike. Track
     sfm::bundler::TrackList tracks;
     {
         sfm::bundler::Tracks::Options tracks_options;
@@ -242,6 +245,7 @@ sfm_reconstruct (AppSettings const& conf)
 
         sfm::bundler::Tracks bundler_tracks(tracks_options);
         std::cout << "Computing feature tracks..." << std::endl;
+        //Zhang Peike: learn how to construct Track
         bundler_tracks.compute(pairwise_matching, &viewports, &tracks);
         std::cout << "Created a total of " << tracks.size()
             << " tracks." << std::endl;
@@ -262,8 +266,9 @@ sfm_reconstruct (AppSettings const& conf)
     {
         //init_pair_opts.homography_opts.max_iterations = 1000;
         //init_pair_opts.homography_opts.threshold = 0.005f;
-        //init_pair_opts.homography_opts.verbose_output = false;
-        init_pair_opts.homography_opts.verbose_output = true;
+        //Zhang Peike changed this verbose_output
+        init_pair_opts.homography_opts.verbose_output = false;
+        //init_pair_opts.homography_opts.verbose_output = true;
         init_pair_opts.max_homography_inliers = 0.8f;
         init_pair_opts.verbose_output = true;
 
@@ -327,7 +332,7 @@ sfm_reconstruct (AppSettings const& conf)
         std::vector<int> next_views;
         incremental.find_next_views(&next_views);
 
-
+        //Zhang Peike PnP
         /* Reconstruct the next view. */
         int next_view_id = -1;
         for (std::size_t i = 0; i < next_views.size(); ++i)
@@ -373,6 +378,7 @@ sfm_reconstruct (AppSettings const& conf)
         else
         {
             std::cout << "Running full bundle adjustment..." << std::endl;
+            //ZhangPeike Full BA
             incremental.bundle_adjustment_full();
             full_ba_num_skipped = 0;
         }

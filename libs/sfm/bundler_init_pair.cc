@@ -315,6 +315,7 @@ InitialPair::compute_homography_inliers (CandidatePair const& candidate,CameraPo
     else
     {
         *Is_Pure_Rotation=false;
+        std::cout<<"Motion isn't degenerate"<<std::endl;
     }
     return ransac_result.inliers.size();
 }
@@ -367,12 +368,12 @@ InitialPair::compute_pose_homography(CandidatePair const& candidate,CameraPose* 
             Inliers_Max_Cnt=i;
         }
     }
+    std::cout<<"Choose Rt Index:"<<Inliers_Max_Cnt<<std::endl;
     *pose2 = poses[Inliers_Max_Cnt];
     std::cout<<"Homography putout Rt:"<<Inliers_Max_Cnt<<std::endl;
 }
 //Zhang Peike imitated pose_from_essential
-void
-pose_from_homography (HomographyMatrix const& G,
+void InitialPair::pose_from_homography (HomographyMatrix const& G,
     std::vector<CameraPose>* result)
 {
     math::Matrix<double,3,3> U,D,V,Rp1,Rp2,Rp3,Rp4;
@@ -382,6 +383,7 @@ pose_from_homography (HomographyMatrix const& G,
     D[0]=D[0]/D[4];
     D[8]=D[8]/D[4];
     double s = math::matrix_determinant(U)*math::matrix_determinant(V);
+    std::cout<<"Variabel s:"<<s<<std::endl;
     //For test
     std::cout<<"G diagonal 1 3:"<<D[0]<<"_"<<D[8]<<std::endl;
     //Faugeras 1988
@@ -450,10 +452,27 @@ pose_from_homography (HomographyMatrix const& G,
 
     result->clear();
     result->resize(4);
-    result->at(0).R=s*U*Rp1*V.transposed();
-    result->at(1).R=s*U*Rp2*V.transposed();
-    result->at(2).R=s*U*Rp3*V.transposed();
-    result->at(3).R=s*U*Rp4*V.transposed();
+
+    if((s-1)<0.1 && (s-1)>-0.1)
+    {
+        result->at(0).R=U*Rp1*V.transposed();
+        result->at(1).R=U*Rp2*V.transposed();
+        result->at(2).R=U*Rp3*V.transposed();
+        result->at(3).R=U*Rp4*V.transposed();
+        std::cout<<"Variable s is near 1:"<<s<<std::endl;
+    }
+    else if((s+1)<0.1 && (s+1)>-0.1)
+    {
+        result->at(0).R=-U*Rp1*V.transposed();
+        result->at(1).R=-U*Rp2*V.transposed();
+        result->at(2).R=-U*Rp3*V.transposed();
+        result->at(3).R=-U*Rp4*V.transposed();
+        std::cout<<"Variable s is near -1:"<<s<<std::endl;
+    }
+    else
+    {
+        std::cout<<"Variable s is not identical to +-1"<<s<<std::endl;
+    }
     result->at(0).t=U*tp1;
     result->at(1).t=U*tp2;
     result->at(2).t=U*tp3;

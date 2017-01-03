@@ -24,7 +24,7 @@
 #include "util/timer.h"
 #include "util/exception.h"
 //How to enable openCV. Zhang Peike
-#include<opencv2/opencv.hpp>
+//#include<opencv2/opencv.hpp>
 
 SFM_NAMESPACE_BEGIN
 SFM_BUNDLER_NAMESPACE_BEGIN
@@ -32,10 +32,12 @@ SFM_BUNDLER_NAMESPACE_BEGIN
 void InitialPair::compute_pair (Result* result)
 {
     if (this->viewports == nullptr || this->tracks == nullptr)
+    {
         throw std::invalid_argument("Null viewports or tracks");
+    }
 
     std::cout << "Searching for initial pair..." << std::endl;
-    std::cout << "Hello from ZhangPeike"<<std::endl;
+    std::cout << "SfM considering planar struture and detecting pure rotation..."<<std::endl;
 
     result->view_1_id = -1;
     result->view_2_id = -1;
@@ -49,29 +51,35 @@ void InitialPair::compute_pair (Result* result)
 
     /*
      * Search for a good initial pair and return the first pair that
-     * satisfies all thresholds (min matches, max homography inliers,
+     * satisfies all thresholds (min matches = 8, max homography inliers,
      * min triangulation angle). If no pair satisfies all thresholds, the
      * pair with the best score is returned.
      */
     bool found_pair = false;
     std::size_t found_pair_id = std::numeric_limits<std::size_t>::max();
-    //C++ primer + P120
+    //C++ primer plus P120
     std::vector<float> pair_scores(candidates.size(), 0.0f);
 
     //Zhang Peike Added timer
     util::WallTimer PoseTimer;
+    bool Is_Model_H = false;
 #pragma omp parallel for schedule(dynamic)
     for (std::size_t i = 0; i < candidates.size(); ++i)
     {
+        //Zhang Peike model index E or H
+
         //Zhang Peike timer
         if (found_pair)
+        {
+            std::cout<<"Congraluations: one pair passed all check and no more computation."<<std::endl;
             continue;
-
+        }
         /* Reject pairs with 8 or fewer matches. */
         CandidatePair const& candidate = candidates[i];
         std::size_t num_matches = candidate.matches.size();
         if (num_matches < static_cast<std::size_t>(this->opts.min_num_matches))
         {
+            std::cout<<"Pair matches less than 8 and the loop jumps!"<<std::endl;
             this->debug_output(candidate);
             continue;
         }
@@ -93,28 +101,34 @@ void InitialPair::compute_pair (Result* result)
         CameraPose pose1, pose2;
         bool IsPureRotattion=false;
         std::size_t num_inliers = this->compute_homography_inliers(candidate,&pose1,&pose2,&IsPureRotattion);
-        std::cout<<"Is Pure Rotation:"<<IsPureRotattion<<std::endl;
+        std::cout<<"Pure Rotation is computed:"<<IsPureRotattion<<std::endl;
         if(IsPureRotattion)
         {
+            std::cout<<"Pure rotation is detected and the loop jumps!"<<std::endl;
             continue;
         }
 
         //ZhangPeike compute pose from Essetial or normalized homography
         /* Compute initial pair pose. */
+
         float percentage = static_cast<float>(num_inliers) / num_matches;
         if (percentage < this->opts.max_homography_inliers)
         {
+            Is_Model_H = false;
             bool const found_pose = this->compute_pose(candidate, &pose1, &pose2);
             if (!found_pose)
             {
+                std::cout<<"Model is E, but computing pose by E failed."<<std::endl;
                 this->debug_output(candidate, num_inliers);
                 continue;
             }
         }
         else
         {
+            Is_Model_H = true;
+            std::cout<<"Model is H, ..."<<std::endl;
             //Zhang Peike computes pose from Homography.
-            this->compute_pose_homography (candidate, &pose1, &pose2);
+            this->compute_pose_homography(candidate, &pose1, &pose2);
         }
 
 /*
@@ -128,10 +142,14 @@ void InitialPair::compute_pair (Result* result)
         /* Rejects pairs with bad triangulation angle. */
         double const angle = this->angle_for_pose(candidate, pose1, pose2);
         pair_scores[i] = this->score_for_pair(candidate, num_inliers, angle);
+        std::cout<<"Pair "<<i<<" score is got."<<std::endl;
+        std::cout<<"Following is debug_output in line 140 maybe about angle scores"<<std::endl;
         this->debug_output(candidate, num_inliers, angle);
         if (angle < this->opts.min_triangulation_angle)
+        {
+            std::cout<<"Triangle less than T and loop jumps!"<<std::endl;
             continue;
-
+        }
         /* Run triangulation to ensure correct pair */
         Triangulate::Options triangulate_opts;
         Triangulate triangulator(triangulate_opts);
@@ -139,6 +157,7 @@ void InitialPair::compute_pair (Result* result)
         poses.push_back(&pose1);
         poses.push_back(&pose2);
         std::size_t successful_triangulations = 0;
+        //2 2D-points
         std::vector<math::Vec2f> positions(2);
         Triangulate::Statistics stats;
         for (std::size_t j = 0; j < candidate.matches.size(); ++j)
@@ -147,10 +166,16 @@ void InitialPair::compute_pair (Result* result)
             positions[1] = math::Vec2f(candidate.matches[j].p2);
             math::Vec3d pos3d;
             if (triangulator.triangulate(poses, positions, &pos3d, &stats))
+            {
+                std::cout<<"Successful trianglation."<<std::endl;
                 successful_triangulations += 1;
+            }
         }
         if (successful_triangulations * 2 < candidate.matches.size())
+        {
+            std::cout<<"No more than half points successful triangulated and loops jumps."<<std::endl;
             continue;
+        }
 
 #pragma omp critical
         if (i < found_pair_id)
@@ -167,7 +192,7 @@ void InitialPair::compute_pair (Result* result)
     /* Return if a pair satisfying all thresholds has been found. */
     if (found_pair)
     {
-        std::cout<<"...One pair has passed all checks to be the initial pair...in bundler_init_pairl.cc line166"<<std::endl;
+        std::cout<<"...One pair has passed all checks to be the initial pair...in bundler_init_pairl.cc line 192"<<std::endl;
         return;
     }
     /* Return pair with best score (larger than 0.0). */
@@ -177,18 +202,29 @@ void InitialPair::compute_pair (Result* result)
     for (std::size_t i = 0; i < pair_scores.size(); ++i)
     {
         if (pair_scores[i] <= best_score)
+        {
             continue;
-
+        }
         best_score = pair_scores[i];
         best_pair_id = i;
+        std::cout<<"Best score is updated: "<<best_score<<std::endl;
+        std::cout<<"Best ID    is updated: "<<i<<std::endl;
     }
     /* Recompute pose for pair with best score. */
     if (best_score > 0.0f)
     {
         result->view_1_id = candidates[best_pair_id].view_1_id;
         result->view_2_id = candidates[best_pair_id].view_2_id;
-        this->compute_pose(candidates[best_pair_id],
-            &result->view_1_pose, &result->view_2_pose);
+        if(Is_Model_H)
+        {
+            std::cout<<"Final estimating the pose with the highest score in Model H"<<std::endl;
+            this->compute_pose_homography(candidates[best_pair_id], &result->view_1_pose, &result->view_2_pose);
+        }
+        else
+        {
+            std::cout<<"Final estimating the pose with the highest score in Model E"<<std::endl;
+            this->compute_pose(candidates[best_pair_id], &result->view_1_pose, &result->view_2_pose);
+        }
     }
 
 }
@@ -343,7 +379,7 @@ InitialPair::compute_pose_homography(CandidatePair const& candidate,CameraPose* 
     //Four Rts
     std::vector<CameraPose> poses;
     pose_from_homography(G,&poses);
-    bool found_pose = false;
+    //bool found_pose = false;
     //Zhang Peike just changed the check. Now using not only 1 point, but all points in matches.
     std::int8_t Rt_support_cnt[4]={0,0,0,0};
     std::int8_t Inliers_Max_Cnt=0,Inliers_Max=0;
@@ -609,7 +645,7 @@ InitialPair::score_for_pair (CandidatePair const& candidate,
     std::size_t num_inliers, double angle)
 {
     float const matches = static_cast<float>(candidate.matches.size());
-    float const inliers = static_cast<float>(num_inliers) / matches;
+    //float const inliers = static_cast<float>(num_inliers) / matches;
     float const angle_d = MATH_RAD2DEG(angle);
 
     /* Score for matches (min: 20, good: 200). */

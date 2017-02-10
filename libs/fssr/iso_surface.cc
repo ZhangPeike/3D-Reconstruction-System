@@ -448,7 +448,9 @@ IsoSurface::extract_mesh (void)
     util::WallTimer timer;
     this->sanity_checks();
     std::cout << " took " << timer.get_elapsed() << " ms." << std::endl;
-
+    //Zhang Peike I want to know when the timer starts.
+    //std::cout << " When timer starts? " << std::endl;
+    //std::cout << " took " << timer.get_elapsed() << " ms." << std::endl;
     /*
      * Assign MC index to every octree node. This can be done in two ways:
      * (1) Iterate all nodes, query corner values, and determine MC index.
@@ -456,6 +458,7 @@ IsoSurface::extract_mesh (void)
      * Strategy (1) is implemented, it is simpler but slightly more expensive.
      */
     std::cout << "  Computing Marching Cubes indices..." << std::flush;
+    timer.reset();
     Octree::Iterator iter = this->octree->get_iterator_for_root();
     for (iter.first_node(); iter.current != nullptr; iter.next_node())
         this->compute_mc_index(iter);

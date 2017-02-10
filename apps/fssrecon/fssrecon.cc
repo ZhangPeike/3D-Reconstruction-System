@@ -87,6 +87,7 @@ fssrecon (AppOptions const& app_opts, fssr::SampleIO::Options const& pset_opts)
         std::cout << "Extracting isosurface..." << std::endl;
         util::WallTimer timer;
         fssr::IsoSurface iso_surface(&octree, app_opts.interp_type);
+        //Zhang Peike, Core function is here.
         mesh = iso_surface.extract_mesh();
         std::cout << "  Done. Surface extraction took "
             << timer.get_elapsed() << "ms." << std::endl;
@@ -218,7 +219,7 @@ main (int argc, char** argv)
             << app_opts.refine_octree << ", exiting." << std::endl;
         return EXIT_FAILURE;
     }
-
+    //Zhang Peike, Main function is here.
     try
     {
         fssrecon(app_opts, pset_opts);

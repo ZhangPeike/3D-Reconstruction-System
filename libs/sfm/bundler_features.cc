@@ -38,6 +38,7 @@ Features::compute (mve::Scene::Ptr scene, ViewportList* viewports)
 
     /* Iterate the scene and compute features. */
 #pragma omp parallel for schedule(dynamic,1)
+    //Zhang Peike ?
     for (std::size_t i = 0; i < views.size(); ++i)
     {
 #pragma omp critical
@@ -50,7 +51,6 @@ Features::compute (mve::Scene::Ptr scene, ViewportList* viewports)
 
         if (views[i] == nullptr)
             continue;
-
         mve::View::Ptr view = views[i];
         mve::ByteImage::Ptr image = view->get_byte_image
             (this->opts.image_embedding);
@@ -82,7 +82,7 @@ Features::compute (mve::Scene::Ptr scene, ViewportList* viewports)
 
 #pragma omp critical
         {
-            std::cout << "\rView ID "
+            std::cout << "\nView ID "
                 << util::string::get_filled(view->get_id(), 4, '0') << " ("
                 << image->width() << "x" << image->height() << "), "
                 << util::string::get_filled(num_feats, 5, ' ') << " features"

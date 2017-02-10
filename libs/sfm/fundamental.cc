@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright (C) 2015, Simon Fuhrmann
  * TU Darmstadt - Graphics, Capture and Massively Parallel Computing
  * All rights reserved.
@@ -38,8 +38,9 @@ namespace
         (*result)(2, 1) = v[0];
     }
 
-}  // namespace
-
+}
+// namespace
+//ZhangPeike found no rank 2 constraint!
 bool
 fundamental_least_squares (Correspondences2D2D const& points,
     FundamentalMatrix* result)
@@ -47,7 +48,7 @@ fundamental_least_squares (Correspondences2D2D const& points,
     if (points.size() < 8)
         throw std::invalid_argument("At least 8 points required");
 
-    /* Create Nx9 matrix A. Each correspondence creates on row in A. */
+    /* Create Nx9 matrix A. Each correspondence creates one row in A. */
     std::vector<double> A(points.size() * 9);
     for (std::size_t i = 0; i < points.size(); ++i)
     {
@@ -79,7 +80,7 @@ fundamental_8_point (Eight2DPoints const& points_view_1,
     Eight2DPoints const& points_view_2, FundamentalMatrix* result)
 {
     /*
-     * Create 8x9 matrix A. Each pair of input points creates on row in A.
+     * Create 8x9 matrix A. Each pair of input points creates one row in A.
      */
     math::Matrix<double, 8, 9> A;
     for (int i = 0; i < 8; ++i)
@@ -124,7 +125,7 @@ enforce_fundamental_constraints (FundamentalMatrix* matrix)
     S(2, 2) = 0.0;
     *matrix = U * S * V.transposed();
 }
-
+//Zhang Peike notes: Estimating fundamental matrix rank constraint isn't considered.
 void
 enforce_essential_constraints (EssentialMatrix* matrix)
 {
@@ -166,6 +167,9 @@ pose_from_essential (EssentialMatrix const& matrix,
 
     // This seems to ensure that det(R) = 1 (instead of -1).
     // FIXME: Is this the correct way to do it?
+    // ZhangPeike is fixing ...
+    // Doing this cannot ensure ...
+    // We need to reset R
     if (math::matrix_determinant(U) < 0.0)
         for (int i = 0; i < 3; ++i)
             U(i,2) = -U(i,2);
@@ -177,13 +181,21 @@ pose_from_essential (EssentialMatrix const& matrix,
     result->clear();
     result->resize(4);
     result->at(0).R = U * W * V;
+    // Zhang Peike added to ensure det of R to be 1.
+    if(math::matrix_determinant(result->at(0).R)<0)
+        result->at(0).R=-result->at(0).R;
     result->at(1).R = result->at(0).R;
     result->at(2).R = U * Wt * V;
+    // Zhang Peike added to ensure det of R to be 1.
+    if(math::matrix_determinant(result->at(2).R)<0)
+        result->at(2).R=-result->at(2).R;
     result->at(3).R = result->at(2).R;
+
     result->at(0).t = U.col(2);
     result->at(1).t = -result->at(0).t;
     result->at(2).t = result->at(0).t;
     result->at(3).t = -result->at(0).t;
+
 
     // FIXME: Temporary sanity check.
     if (!MATH_EPSILON_EQ(math::matrix_determinant(result->at(0).R), 1.0, 1e-3))

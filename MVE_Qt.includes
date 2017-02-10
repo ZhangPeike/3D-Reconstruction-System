@@ -1,0 +1,14 @@
+apps/dmrecon
+apps/meshalign
+apps/umve
+apps/umve/plugins/example
+apps/umve/scene_addins
+apps/umve/scene_inspect
+apps/umve/viewinspect
+libs/dmrecon
+libs/fssr
+libs/math
+libs/mve
+libs/ogl
+libs/sfm
+libs/util

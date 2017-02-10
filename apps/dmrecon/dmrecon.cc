@@ -259,6 +259,7 @@ main (int argc, char** argv)
         fancyProgressPrinter.addRefView(conf.master_id);
         try
         {
+            //Zhang Peike
             reconstruct(scene, conf.mvs);
         }
         catch (std::exception &err)

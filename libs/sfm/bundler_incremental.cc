@@ -13,6 +13,8 @@
 
 #include "util/timer.h"
 #include "math/matrix_tools.h"
+#include "math/matrix_svd.h"
+#include "math/functions.h"
 #include "sfm/triangulate.h"
 #include "sfm/pba_cpu.h"
 #include "sfm/bundler_incremental.h"

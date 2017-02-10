@@ -34,34 +34,28 @@ public:
     struct Options
     {
         Options (void);
-
         /**
          * The algorithm tries to explain the matches using a homography.
          * The homograhy is computed using RANSAC with the given options.
          */
         RansacHomography::Options homography_opts;
-
         /**
          * The maximum percentage of homography inliers.
          */
         float max_homography_inliers;
-
         /**
          * Minimum number of pair matches. Minimum is 8.
          */
         int min_num_matches;
-
         /**
          * Minimum triangulation angle of tracks (in radians).
          */
         double min_triangulation_angle;
-
         /**
          * Produce status messages on the console.
          */
         bool verbose_output;
     };
-
     /**
      * The resulting initial pair with view IDs and relative camera pose.
      * If no initial pair could be found, both view IDs are set to -1.
@@ -92,11 +86,13 @@ private:
         bool operator< (CandidatePair const& other) const;
     };
     typedef std::vector<CandidatePair> CandidatePairs;
-
 private:
-    std::size_t compute_homography_inliers (CandidatePair const& candidate);
-    bool compute_pose (CandidatePair const& candidate,
-        CameraPose* pose1, CameraPose* pose2);
+    //Zhang Peike added 3 functions 20161230
+    std::size_t compute_homography_inliers (CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2,bool* Is_Pure_Rotation);
+    bool compute_pose (CandidatePair const& candidate, CameraPose* pose1, CameraPose* pose2);
+    void compute_pose_homography (CandidatePair const& candidate, CameraPose* pose1, CameraPose* pose2);
+    void pose_from_homography (HomographyMatrix const& matrix, std::vector<CameraPose>* result);
+    //bool isPureRotation(CandidatePair const& candidate,CameraPose* pose1, CameraPose* pose2);
     void compute_candidate_pairs (CandidatePairs* candidates);
     double angle_for_pose (CandidatePair const& candidate,
         CameraPose const& pose1, CameraPose const& pose2);

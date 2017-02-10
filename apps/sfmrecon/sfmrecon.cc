@@ -48,7 +48,9 @@ struct AppSettings
     bool lowres_matching = true;
     bool normalize_scene = false;
     bool skip_sfm = false;
-    bool always_full_ba = false;
+    //bool always_full_ba = false;
+    //20170107 Changed always_full_ba
+    bool always_full_ba = true;
     bool fixed_intrinsics = false;
     bool shared_intrinsics = false;
     bool intrinsics_from_views = false;
@@ -60,7 +62,7 @@ struct AppSettings
     int min_views_per_track = 3;
     bool cascade_hashing = false;
 };
-
+//Zhang notes log to file
 void
 log_message (AppSettings const& conf, std::string const& message)
 {
@@ -101,6 +103,8 @@ features_and_matching (mve::Scene::Ptr scene, AppSettings const& conf,
 
         std::cout << "Computing features took " << timer.get_elapsed()
             << " ms." << std::endl;
+        //Zhang added the line below.
+        std::cout << "L Features process."<<std::endl;
         log_message(conf, "Feature detection took "
             + util::string::get(timer.get_elapsed()) + "ms.");
     }
@@ -178,6 +182,7 @@ sfm_reconstruct (AppSettings const& conf)
     }
     else if (!conf.skip_sfm)
     {
+        //Zhang Peike: it is functioning.
         log_message(conf, "Loading pairwise matching from file.");
         std::cout << "Loading pairwise matching from file..." << std::endl;
         sfm::bundler::load_prebundle_from_file(prebundle_path,
@@ -193,7 +198,9 @@ sfm_reconstruct (AppSettings const& conf)
     /* Drop descriptors and embeddings to save memory. */
     scene->cache_cleanup();
     for (std::size_t i = 0; i < viewports.size(); ++i)
+    {
         viewports[i].features.clear_descriptors();
+    }
 
     /* Check if there are some matching images. */
     if (pairwise_matching.empty())
@@ -212,6 +219,7 @@ sfm_reconstruct (AppSettings const& conf)
      * Obtaining EXIF guesses can be moved out of the feature module to here.
      * The following code can become its own module "bundler_intrinsics".
      */
+    //Composite lines for getting intrinsics
     {
         sfm::bundler::Intrinsics::Options intrinsics_opts;
         if (conf.intrinsics_from_views)
@@ -225,11 +233,13 @@ sfm_reconstruct (AppSettings const& conf)
     }
 
     /* Start incremental SfM. */
+    // SfM Timer
     log_message(conf, "Starting incremental SfM.");
     util::WallTimer timer;
     util::system::rand_seed(RAND_SEED_SFM);
 
     /* Compute connected feature components, i.e. feature tracks. */
+    //Zhang Peike. Track
     sfm::bundler::TrackList tracks;
     {
         sfm::bundler::Tracks::Options tracks_options;
@@ -237,25 +247,32 @@ sfm_reconstruct (AppSettings const& conf)
 
         sfm::bundler::Tracks bundler_tracks(tracks_options);
         std::cout << "Computing feature tracks..." << std::endl;
+        //Zhang Peike: learn how to construct Track
         bundler_tracks.compute(pairwise_matching, &viewports, &tracks);
         std::cout << "Created a total of " << tracks.size()
             << " tracks." << std::endl;
     }
 
     /* Remove color data and pairwise matching to save memory. */
+    //Zhang Peike added big blocks
     for (std::size_t i = 0; i < viewports.size(); ++i)
+    {
         viewports[i].features.colors.clear();
+    }
     pairwise_matching.clear();
 
-    /* Search for a good initial pair, or use the user-specified one. */
+    /* Search for a good initial pair, or use the user-specified one --initial_pair_1,2*/
     sfm::bundler::InitialPair::Result init_pair_result;
     sfm::bundler::InitialPair::Options init_pair_opts;
     if (conf.initial_pair_1 < 0 || conf.initial_pair_2 < 0)
     {
         //init_pair_opts.homography_opts.max_iterations = 1000;
         //init_pair_opts.homography_opts.threshold = 0.005f;
-        init_pair_opts.homography_opts.verbose_output = false;
-        init_pair_opts.max_homography_inliers = 0.8f;
+        //Zhang Peike changed this verbose_output
+        init_pair_opts.homography_opts.verbose_output = true;
+        //init_pair_opts.homography_opts.verbose_output = true;
+        //0.8 is changed to 0.7
+        init_pair_opts.max_homography_inliers = 0.7f;
         init_pair_opts.verbose_output = true;
 
         sfm::bundler::InitialPair init_pair(init_pair_opts);
@@ -302,6 +319,7 @@ sfm_reconstruct (AppSettings const& conf)
     /* Initialize the incremental bundler and reconstruct first tracks. */
     sfm::bundler::Incremental incremental(incremental_opts);
     incremental.initialize(&viewports, &tracks);
+    //Zhang Peike Initial Structure
     incremental.triangulate_new_tracks(2);
     incremental.invalidate_large_error_tracks();
 
@@ -318,12 +336,7 @@ sfm_reconstruct (AppSettings const& conf)
         std::vector<int> next_views;
         incremental.find_next_views(&next_views);
 
-        if (next_views.empty())
-        {
-            std::cout << "SfM reconstruction finished." << std::endl;
-            break;
-        }
-
+        //Zhang Peike PnP
         /* Reconstruct the next view. */
         int next_view_id = -1;
         for (std::size_t i = 0; i < next_views.size(); ++i)
@@ -337,6 +350,12 @@ sfm_reconstruct (AppSettings const& conf)
                 next_view_id = next_views[i];
                 break;
             }
+        }
+
+        if (next_views.empty())
+        {
+            std::cout << "SfM reconstruction finished." << std::endl;
+            break;
         }
 
         if (next_view_id < 0)
@@ -353,8 +372,7 @@ sfm_reconstruct (AppSettings const& conf)
         num_cameras_reconstructed += 1;
 
         /* Run full bundle adjustment only after a couple of views. */
-        int const full_ba_skip_views = conf.always_full_ba ? 0
-            : std::min(5, num_cameras_reconstructed / 15);
+        int const full_ba_skip_views = conf.always_full_ba ? 0 : std::min(5, num_cameras_reconstructed / 15);
         if (full_ba_num_skipped < full_ba_skip_views)
         {
             std::cout << "Skipping full bundle adjustment (skipping "
@@ -364,6 +382,7 @@ sfm_reconstruct (AppSettings const& conf)
         else
         {
             std::cout << "Running full bundle adjustment..." << std::endl;
+            //ZhangPeike Full BA
             incremental.bundle_adjustment_full();
             full_ba_num_skipped = 0;
         }

@@ -48,9 +48,13 @@ struct AppSettings
     bool lowres_matching = true;
     bool normalize_scene = false;
     bool skip_sfm = false;
+<<<<<<< HEAD
     //bool always_full_ba = false;
     //20170107 Changed always_full_ba
     bool always_full_ba = true;
+=======
+    bool always_full_ba = false;
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
     bool fixed_intrinsics = false;
     bool shared_intrinsics = false;
     bool intrinsics_from_views = false;
@@ -269,10 +273,16 @@ sfm_reconstruct (AppSettings const& conf)
         //init_pair_opts.homography_opts.max_iterations = 1000;
         //init_pair_opts.homography_opts.threshold = 0.005f;
         //Zhang Peike changed this verbose_output
+<<<<<<< HEAD
         init_pair_opts.homography_opts.verbose_output = true;
         //init_pair_opts.homography_opts.verbose_output = true;
         //0.8 is changed to 0.7
         init_pair_opts.max_homography_inliers = 0.7f;
+=======
+        init_pair_opts.homography_opts.verbose_output = false;
+        //init_pair_opts.homography_opts.verbose_output = true;
+        init_pair_opts.max_homography_inliers = 0.8f;
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
         init_pair_opts.verbose_output = true;
 
         sfm::bundler::InitialPair init_pair(init_pair_opts);
@@ -319,7 +329,10 @@ sfm_reconstruct (AppSettings const& conf)
     /* Initialize the incremental bundler and reconstruct first tracks. */
     sfm::bundler::Incremental incremental(incremental_opts);
     incremental.initialize(&viewports, &tracks);
+<<<<<<< HEAD
     //Zhang Peike Initial Structure
+=======
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
     incremental.triangulate_new_tracks(2);
     incremental.invalidate_large_error_tracks();
 

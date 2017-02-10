@@ -372,7 +372,11 @@ InitialPair::compute_pose_homography(CandidatePair const& candidate,CameraPose* 
     //Pose 1 is [I|0]
     pose1->init_canonical_form();
     pose1->set_k_matrix(view_1.focal_length, 0.0, 0.0);
+<<<<<<< HEAD
     pose2->set_k_matrix(1/(view_2.focal_length), 0.0, 0.0);
+=======
+    pose2->set_k_matrix(1/view_2.focal_length, 0.0, 0.0);
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
     HomographyMatrix G = pose2->K*(ransac_result.homography)*pose1->K;
     //For later triangulation
     pose2->set_k_matrix(view_2.focal_length, 0.0, 0.0);
@@ -412,11 +416,17 @@ InitialPair::compute_pose_homography(CandidatePair const& candidate,CameraPose* 
 void InitialPair::pose_from_homography (HomographyMatrix const& G,
     std::vector<CameraPose>* result)
 {
+<<<<<<< HEAD
     math::Matrix<double,3,3> U,D,V,Rp1(0.0),Rp2(0.0),Rp3(0.0),Rp4(0.0);
     math::Vec3d tp1,tp2,tp3,tp4;
     /* Execute homography RANSAC. */
     // V is just the very V, not transposed.
     // G=UDV'
+=======
+    math::Matrix<double,3,3> U,D,V,Rp1,Rp2,Rp3,Rp4;
+    math::Vec3d tp1,tp2,tp3,tp4;
+    /* Execute homography RANSAC. */
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
     math::matrix_svd(G,&U,&D,&V);
     D[0]=D[0]/D[4];
     D[8]=D[8]/D[4];
@@ -442,7 +452,10 @@ void InitialPair::pose_from_homography (HomographyMatrix const& G,
     Rp1[7]=0;
     Rp1[8]=cos_theta;
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
     Rp2[0]=cos_theta;
     Rp2[1]=0;
     Rp2[2]=-sin_theta[1];
@@ -472,6 +485,7 @@ void InitialPair::pose_from_homography (HomographyMatrix const& G,
     Rp4[6]=sin_theta[3];
     Rp4[7]=0;
     Rp4[8]=cos_theta;
+<<<<<<< HEAD
     // 2017-1-19 Error in the 3rd element sign
     tp1[0]=(D[0]-D[8])*x1[0];
     tp1[1]=0;
@@ -488,6 +502,24 @@ void InitialPair::pose_from_homography (HomographyMatrix const& G,
     tp4[0]=(D[0]-D[8])*x1[3];
     tp4[1]=0;
     tp4[2]=(D[8]-D[0])*x3[3];
+=======
+
+    tp1[0]=(D[0]-D[8])*x1[0];
+    tp1[1]=0;
+    tp1[2]=(D[0]-D[8])*x3[0];
+
+    tp2[0]=(D[0]-D[8])*x1[1];
+    tp2[1]=0;
+    tp2[2]=(D[0]-D[8])*x3[1];
+
+    tp3[0]=(D[0]-D[8])*x1[2];
+    tp3[1]=0;
+    tp3[2]=(D[0]-D[8])*x3[2];
+
+    tp4[0]=(D[0]-D[8])*x1[3];
+    tp4[1]=0;
+    tp4[2]=(D[0]-D[8])*x3[3];
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
 
     result->clear();
     result->resize(4);
@@ -498,10 +530,13 @@ void InitialPair::pose_from_homography (HomographyMatrix const& G,
         result->at(1).R=U*Rp2*V.transposed();
         result->at(2).R=U*Rp3*V.transposed();
         result->at(3).R=U*Rp4*V.transposed();
+<<<<<<< HEAD
         result->at(0).t=U*tp1;
         result->at(1).t=U*tp2;
         result->at(2).t=U*tp3;
         result->at(3).t=U*tp4;
+=======
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
         std::cout<<"Variable s is near 1:"<<s<<std::endl;
     }
     else if((s+1)<0.1 && (s+1)>-0.1)
@@ -510,16 +545,26 @@ void InitialPair::pose_from_homography (HomographyMatrix const& G,
         result->at(1).R=-U*Rp2*V.transposed();
         result->at(2).R=-U*Rp3*V.transposed();
         result->at(3).R=-U*Rp4*V.transposed();
+<<<<<<< HEAD
         result->at(0).t=U*tp1;
         result->at(1).t=U*tp2;
         result->at(2).t=U*tp3;
         result->at(3).t=U*tp4;
+=======
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
         std::cout<<"Variable s is near -1:"<<s<<std::endl;
     }
     else
     {
         std::cout<<"Variable s is not identical to +-1"<<s<<std::endl;
     }
+<<<<<<< HEAD
+=======
+    result->at(0).t=U*tp1;
+    result->at(1).t=U*tp2;
+    result->at(2).t=U*tp3;
+    result->at(3).t=U*tp4;
+>>>>>>> cb96ec4e504c683330283b829ab520d3cdc0f942
 }
 
 //ZhangPeike added
